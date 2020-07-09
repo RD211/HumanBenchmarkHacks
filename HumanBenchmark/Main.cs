@@ -2,17 +2,31 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
-using Patagames.Ocr;
-using Patagames.Ocr.Enums;
 using System.Windows.Input;
+using CefSharp.WinForms;
+using CefSharp;
+using System.Text.RegularExpressions;
+using System.Linq;
+using System.Text;
+
 namespace HumanBenchmark
 {
     public partial class Main : Form
     {
+        public ChromiumWebBrowser browser;
+       
+        public void InitBrowser()
+        {
+            Cef.Initialize(new CefSettings());
+            browser = new ChromiumWebBrowser("https://humanbenchmark.com");
+            this.Controls.Add(browser);
+        }
+
         #region Constructor and on load
         public Main()
         {
             InitializeComponent();
+            InitBrowser();
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -26,35 +40,45 @@ namespace HumanBenchmark
         List<Color> colors = new List<Color>() { Color.FromArgb(43, 135, 209), Color.FromArgb(206, 38, 54), Color.FromArgb(75, 219, 106) };
         private void btn_reactionGame_Click(object sender, EventArgs e)
         {
-            System.Threading.Thread.Sleep(2000);
+            stopAllTimers();
+            browser.Load("https://humanbenchmark.com/tests/reactiontime");
+            while (browser.IsLoading)
+            {
+                System.Threading.Thread.Sleep(200);
+            }
+
+            var script = @"
+            document.getElementsByClassName('view-splash e18o0sx0 css-saet2v e19owgy77')[0].dispatchEvent(new Event('mousedown', {     bubbles: true,     cancelable: true, }));
+        ";
+            browser.ExecuteScriptAsync(script);
+            System.Threading.Thread.Sleep(200);
             reactionBotTimer.Enabled = true;
             reactionBotTimer.Start();
-            
         }
 
-        private void reactionBotTimer_Tick(object sender, EventArgs e)
+        async private void reactionBotTimer_Tick(object sender, EventArgs e)
         {
-            var pixel = ScreenCapture.GetColorAtTwo(300,300);
-            for (int i = 0; i < 3; i++)
+            if (reactedThisManyTimes >= 5)
             {
-                if (Math.Abs(colors[i].R - pixel.R) + Math.Abs(colors[i].B - pixel.B) + Math.Abs(colors[i].G - pixel.G) <= 10)
-                {
-                    if (i != 1)
-                    {
-                        MouseOperations.SetCursorPosition(300, 300);
-                        MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftDown);
-                        MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
-                        reactedThisManyTimes++;
-                        System.Threading.Thread.Sleep(400);
-                    }
-                }
-            }
-            if (reactedThisManyTimes == 10)
-            {
-                reactionBotTimer.Enabled = false;
-                reactionBotTimer.Stop();
                 reactedThisManyTimes = 0;
+                reactionBotTimer.Stop();
             }
+            string html = (await browser.GetSourceAsync());
+            if(html.Contains("view-go e18o0sx0 css-saet2v e19owgy77"))
+            {
+                var script = @"
+            document.getElementsByClassName('view-go e18o0sx0 css-saet2v e19owgy77')[0].dispatchEvent(new Event('mousedown', {     bubbles: true,     cancelable: true, }));
+        ";
+                browser.ExecuteScriptAsync(script);
+                System.Threading.Thread.Sleep(10);
+                var script2 = @"
+            document.getElementsByClassName('view-result e18o0sx0 css-saet2v e19owgy77')[0].dispatchEvent(new Event('mousedown', {     bubbles: true,     cancelable: true, }));
+        ";
+                reactedThisManyTimes++;
+                if(reactedThisManyTimes!=5)
+                browser.ExecuteScriptAsync(script2);
+            }
+
         }
         #endregion
 
@@ -62,9 +86,21 @@ namespace HumanBenchmark
         int shotThisManyTimes = 0;
         private void btn_targetBot_Click(object sender, EventArgs e)
         {
-            System.Threading.Thread.Sleep(2000);
-            targetBotTimer.Start();
+            stopAllTimers();
+
+            browser.Load("https://humanbenchmark.com/tests/aim");
+            while (browser.IsLoading)
+            {
+                System.Threading.Thread.Sleep(200);
+            }
+
+            var script = @"
+            document.getElementsByClassName('css-qm0ri0 e19owgy710')[0].dispatchEvent(new Event('mousedown', {     bubbles: true,     cancelable: true, }));;
+        ";
+            browser.ExecuteScriptAsync(script);
+            System.Threading.Thread.Sleep(200);
             targetBotTimer.Enabled = true;
+            targetBotTimer.Start();
         }
 
         private void targetBotTimer_Tick(object sender, EventArgs e)
@@ -75,51 +111,42 @@ namespace HumanBenchmark
                 targetBotTimer.Enabled = false;
                 shotThisManyTimes = 0;
             }
-            var bmp = ScreenCapture.CaptureActiveWindow();
-            for (int i = 0; i < 400; i += 2)
-            {
-                for (int j = 0; j < 1400; j += 2)
-                {
-                    var pixel = bmp.GetPixel(j + 300, i + 300);
-                    if (Math.Abs(255 - pixel.R) + Math.Abs(255 - pixel.G) + Math.Abs(255 - pixel.B) <= 10)
-                    {
-
-                        MouseOperations.SetCursorPosition(j + 300,i+300);
-                        MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftDown);
-                        MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
-                        shotThisManyTimes++;
-                        return;
-                    }
-
-                }
-            }
+            string script = @"document.getElementsByClassName('css-21ob1n e6yfngs0')[0].firstChild.dispatchEvent(new Event('mousedown', {     bubbles: true,     cancelable: true, }));";
+            browser.ExecuteScriptAsync(script);
+            shotThisManyTimes++;
 
         }
         #endregion
 
         #region Typing game
-        private static Bitmap cropImage(DirectBitmap img, Rectangle cropArea)
-        {
-            return img.Bitmap.Clone(cropArea, img.Bitmap.PixelFormat);
-        }
         private void btn_chimp_Click(object sender, EventArgs e)
         {
-            System.Threading.Thread.Sleep(2000);
-            SendKeys.Send(this.txt_read.Text);
-        }
-        private void btn_readChimp_Click(object sender, EventArgs e)
-        {
-            System.Threading.Thread.Sleep(2000);
-            var bmp = ScreenCapture.CaptureActiveWindow();
-            using (var api = OcrApi.Create())
+            stopAllTimers();
+
+            browser.Load("https://humanbenchmark.com/tests/typing");
+            while (browser.IsLoading)
             {
-                api.Init(Languages.English);
-                string plainText = api.GetTextFromImage(cropImage(bmp, new Rectangle(473, 364, 1419 - 473, 520 - 364)));
-                bmp.Dispose();
-                if (plainText[0] == '[')
-                    plainText = plainText.Remove(0, 1);
-                this.txt_read.Text = plainText.Replace("\n", "").Replace("\r", "");
+                System.Threading.Thread.Sleep(200);
             }
+            System.Windows.Forms.Timer tempTimer = new System.Windows.Forms.Timer(this.components);
+            tempTimer.Interval = 5000;
+            tempTimer.Start();
+            tempTimer.Enabled = true;
+            tempTimer.Tick += (_, __) => {
+                browser.GetSourceAsync().ContinueWith((res) => {
+                    var html = res.Result;
+                    StringBuilder builder = new StringBuilder();
+                    builder.Append(Regex.Split(html, "<span class=\"incomplete current\">")[1].Split('<')[0]);
+                    Regex.Split(html, "<span class=\"incomplete\">").Skip(1).ToList().ForEach((letter) =>
+                    {
+                        builder.Append(letter.Split('<')[0]);
+                    });
+                    SendKeys.SendWait(builder.ToString());
+                    tempTimer.Enabled = false;
+                    tempTimer.Stop();
+                });
+            };
+
         }
         #endregion
 
@@ -129,6 +156,9 @@ namespace HumanBenchmark
         int levelsPassed = 0;
         private void button1_Click(object sender, EventArgs e)
         {
+            stopAllTimers();
+
+            //browser.Url = new Uri("https://humanbenchmark.com/tests/memory");
             System.Threading.Thread.Sleep(2000);
             visualMemoryTimer.Enabled = true;
             visualMemoryTimer.Start();
@@ -136,6 +166,8 @@ namespace HumanBenchmark
 
         private void visualMemoryTimer_Tick(object sender, EventArgs e)
         {
+
+            //working on
             if(levelsPassed==50)
             {
                 levelsPassed = 0;
@@ -143,72 +175,6 @@ namespace HumanBenchmark
                 visualMemoryTimer.Enabled = false;
             }
             levelsPassed++;
-            var bmp = ScreenCapture.CaptureActiveWindow();
-
-            bmp = new DirectBitmap(cropImage(bmp, new Rectangle(560, 200, 1400 - 560, 430)));
-            List<Point> pointsToPress = new List<Point>();
-            for(int i = 0;i<bmp.Height;i+=20)
-            {
-                for(int j = 0;j<bmp.Width;j+=20)
-                {
-                    int r = 0, g = 0, b = 0;
-                    for(int ii = 0;ii<5;ii++)
-                    {
-                        for(int jj=0;jj<5;jj++)
-                        {
-                            var pixel = bmp.GetPixel(j + jj, i + ii);
-                            r += pixel.R;
-                            b += pixel.B;
-                            g += pixel.G;
-                        }
-                    }
-                    if(r+g+b>=250*3*25)
-                    {
-                        pointsToPress.Add(new Point(j, i));
-                    }
-                }
-            }
-            bmp.Dispose();
-            System.Threading.Thread.Sleep(500);
-            bool same = true;
-            while(same)
-            {
-                same = false;
-                var newBmp = ScreenCapture.CaptureActiveWindow();
-
-                newBmp = new DirectBitmap(cropImage(newBmp, new Rectangle(560, 200, 1400 - 560, 430)));
-                for (int i = 0; i < newBmp.Height; i += 20)
-                {
-                    for (int j = 0; j < newBmp.Width; j += 20)
-                    {
-                        int r = 0, g = 0, b = 0;
-                        for (int ii = 0; ii < 5; ii++)
-                        {
-                            for (int jj = 0; jj < 5; jj++)
-                            {
-                                var pixel = newBmp.GetPixel(j + jj, i + ii);
-                                r += pixel.R;
-                                b += pixel.B;
-                                g += pixel.G;
-                            }
-                        }
-                        if (r + g + b >= 250 * 3 * 25)
-                        {
-                            same = true;
-                        }
-                    }
-                }
-                newBmp.Dispose();
-                System.Threading.Thread.Sleep(500);
-            }
-            pointsToPress.ForEach((point) => {
-                MouseOperations.SetCursorPosition(point.X + 560, point.Y + 200);
-                MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftDown);
-                MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
-
-            });
-            GC.Collect();
-            System.Threading.Thread.Sleep(750);
         }
         #endregion
 
@@ -217,50 +183,57 @@ namespace HumanBenchmark
         Dictionary<string, bool> wordsSoFar = new Dictionary<string, bool>();
         private void btn_verbalMemory_Click(object sender, EventArgs e)
         {
-            System.Threading.Thread.Sleep(2000);
+            stopAllTimers();
+
+            browser.Load("https://humanbenchmark.com/tests/verbal-memory");
+            System.Threading.Thread.Sleep(100);
+            while (browser.IsLoading)
+            {
+                System.Threading.Thread.Sleep(200);
+            }
             wordsSoFar = new Dictionary<string, bool>();
+
+            var script = @"
+            document.getElementsByClassName('css-qm0ri0 e19owgy710')[0].click();
+        ";
+            browser.ExecuteScriptAsync(script);
+            System.Threading.Thread.Sleep(2000);
             verbalMemoryTimer.Enabled = true;
             verbalMemoryTimer.Start();
         }
 
-        private void verbalMemoryTimer_Tick(object sender, EventArgs e)
+
+        async private void verbalMemoryTimer_Tick(object sender, EventArgs e)
         {
-            if(words>=200000)
+            if (words >= 200000)
             {
                 words = 0;
                 verbalMemoryTimer.Stop();
             }
             words++;
-            var bmp = ScreenCapture.CaptureActiveWindow();
-            using (var api = OcrApi.Create())
+            string html = (await browser.GetSourceAsync());
+            string text = "";
+            try
             {
-                api.Init(Languages.English);
-                var croppedImage = cropImage(bmp, new Rectangle(550, 340, 1350 - 550, 437 - 340));
-                Bitmap resized = new Bitmap(croppedImage, new Size(croppedImage.Width / 2, croppedImage.Height / 2));
-                string plainText = api.GetTextFromImage(resized);
-                resized.Dispose();
-                croppedImage.Dispose();
-
-                if (wordsSoFar.ContainsKey(plainText))
-                {
-                    MouseOperations.SetCursorPosition(868, 480);
-                    MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftDown);
-                    MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
-                }
-                else
-                {
-                    wordsSoFar.Add(plainText, true);
-                    //1040 480
-                    MouseOperations.SetCursorPosition(1040, 480);
-                    MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftDown);
-                    MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
-                }
+                text = Regex.Split(Regex.Split(html, "<div class=\"word\">")[1], "<")[0];
             }
+            catch { }
+            if (wordsSoFar.ContainsKey(text))
+            {
+                var script = @"
+            document.getElementsByClassName('css-qm0ri0 e19owgy710')[0].click();
+        ";
+                browser.ExecuteScriptAsync(script);
 
-
-            bmp.Dispose();
-            GC.Collect();
-
+            }
+            else
+            {
+                var script = @"
+            document.getElementsByClassName('css-qm0ri0 e19owgy710')[1].click();
+        ";
+                browser.ExecuteScriptAsync(script);
+                wordsSoFar.Add(text, true);
+            }
         }
         #endregion
 
@@ -268,11 +241,34 @@ namespace HumanBenchmark
         int numbers = 0;
         private void btn_numberMemory_Click(object sender, EventArgs e)
         {
-            System.Threading.Thread.Sleep(2000);
+            stopAllTimers();
+            browser.Load("https://humanbenchmark.com/tests/number-memory");
+            while (browser.IsLoading)
+            {
+                System.Threading.Thread.Sleep(200);
+            }
+
+            var script = @"
+            document.getElementsByClassName('css-qm0ri0 e19owgy710')[0].click();
+        ";
+            browser.ExecuteScriptAsync(script);
             numberMemoryTimer.Enabled = true;
             numberMemoryTimer.Start();
         }
-        private void numberMemoryTimer_Tick(object sender, EventArgs e)
+        Dictionary<char, int> fromCharToKeyCode = new Dictionary<char, int>() {
+            {'0',0x30},
+            {'1',0x31},
+            {'2',0x32},
+            {'3',0x33},
+            {'4',0x34},
+            {'5',0x35},
+            {'6',0x36},
+            {'7',0x37},
+            {'8',0x38},
+            {'9',0x39},
+        };
+
+        async private void numberMemoryTimer_Tick(object sender, EventArgs e)
         {
             if(numbers==100)
             {
@@ -281,68 +277,41 @@ namespace HumanBenchmark
                 numberMemoryTimer.Enabled = false;
             }
             numbers++;
-            var bmp = ScreenCapture.CaptureActiveWindow();
-            using (var api = OcrApi.Create())
+            var html = await browser.GetSourceAsync();
+            string text="";
+            try
             {
-                api.Init(Languages.English);
-                int other = 0;
-                if(numbers>=18)
+                text = Regex.Split(Regex.Split(html, "<div class=\"big-number \">")[1], "<")[0];
+            }
+            catch { }
+            if (text == "")
+                return;
+            while(true)
+            {
+                var html2 = await browser.GetSourceAsync();
+                try
                 {
-                    other = 200;
+                    string text2 = Regex.Split(Regex.Split(html2, "<div class=\"big-number \">")[1], "<")[0];
+                    if (text != text2)
+                        break;
                 }
-                var croppedImage = cropImage(bmp, new Rectangle(350, 150, 1650 - 350, 425 - 150+other));
-                Bitmap resized = new Bitmap(croppedImage, new Size(croppedImage.Width / 4, croppedImage.Height / 4));
-                croppedImage.Dispose();
-
-                string plainText = api.GetTextFromImage(resized);
-                resized.Dispose();
-                plainText = plainText.Replace("O", "0");
-                plainText = plainText.Replace("o", "0");
-                plainText = plainText.Replace(" ", "");
-                plainText = plainText.Replace("_", "");
-                plainText = plainText.Replace("-", "");
-                bool wait = true;
-                while(wait)
-                {
-                    var newBmp = ScreenCapture.CaptureActiveWindow();
-                    var newCroppedImage = cropImage(newBmp, new Rectangle(350, 150, 1650 - 350, 425 - 150+other));
-                    Bitmap newResized = new Bitmap(newCroppedImage, new Size(newCroppedImage.Width / 4, newCroppedImage.Height / 4));
-                    newCroppedImage.Dispose();
-
-                    string plainText2 = api.GetTextFromImage(newResized);
-                    newResized.Dispose();
-                    plainText2 = plainText2.Replace("O", "0");
-                    plainText2 = plainText2.Replace("o", "0");
-
-                    plainText2 = plainText2.Replace(" ", "");
-                    plainText2 = plainText2.Replace("_", "");
-                    plainText2 = plainText2.Replace("-", "");
-
-
-                    if (plainText!=plainText2)
-                    {
-                        wait = false;
-                    }
-                    System.Threading.Thread.Sleep(1000);
-                    newBmp.Dispose();
-                    GC.Collect();
-                }
-                MouseOperations.SetCursorPosition(990, 384);
-                MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftDown);
-                MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
-                System.Threading.Thread.Sleep(1000);
-                SendKeys.Send(plainText.Replace("\n","").Replace("\r",""));
-                System.Threading.Thread.Sleep(2000);
-                SendKeys.Send("\n");
+                catch { break; }
+                System.Threading.Thread.Sleep(500);
 
             }
-            System.Threading.Thread.Sleep(2000);
-            SendKeys.Send("\n");
-            System.Threading.Thread.Sleep(10);
-            MouseOperations.SetCursorPosition(100, 100);
-            //962 542
-            bmp.Dispose();
-            GC.Collect();
+            var script = @"document.getElementsByClassName('css-qm0ri0 e19owgy710')[0].click();";
+            text.ToList().ForEach((c) => {
+                KeyEvent k = new KeyEvent
+                {
+                    WindowsKeyCode = fromCharToKeyCode[c],
+                    IsSystemKey = false,
+                    Type = KeyEventType.Char
+                };
+                browser.GetBrowser().GetHost().SendKeyEvent(k);
+            });
+            browser.ExecuteScriptAsync(script);
+            browser.ExecuteScriptAsync(script);
+            System.Threading.Thread.Sleep(200);
         }
         #endregion
 
@@ -353,6 +322,19 @@ namespace HumanBenchmark
             {
                 Environment.Exit(0);
             }
+        }
+        private void stopAllTimers()
+        {
+            numberMemoryTimer.Stop();
+            verbalMemoryTimer.Stop();
+            reactionBotTimer.Stop();
+            visualMemoryTimer.Stop();
+            targetBotTimer.Stop();
+            wordsSoFar = new Dictionary<string, bool>();
+            words = 0;
+            numbers = 0;
+            reactedThisManyTimes = 0;
+            shotThisManyTimes = 0;
         }
         #endregion
 
